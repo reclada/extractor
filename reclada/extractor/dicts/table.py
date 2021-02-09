@@ -1,5 +1,9 @@
+from collections import namedtuple
+
 from .findterms import extract
 from .dict_repo import DictTermRepo
+
+FoundTermInfo = namedtuple("FoundTermInfo", ["col", "row", "term_id", "meta"])
 
 
 def box_key(cell):
@@ -9,13 +13,13 @@ def box_key(cell):
 def process_table(tree, repo: DictTermRepo, document_id, page_num, table):
     if table.get("header"):
         table["header"].sort(key=box_key)
-        for n, cell in enumerate(table["header"]):
-            process_cell(tree, repo, document_id, page_num, cell, n, True)
+        for col_num, cell in enumerate(table["header"]):
+            yield from process_cell(tree, repo, document_id, page_num, cell, None, col_num, True)
     if table.get("rows"):
-        for row in table["rows"]:
+        for row_num, row in enumerate(table["rows"]):
             row["cells"].sort(key=box_key)
-            for n, cell in enumerate(row["cells"]):
-                process_cell(tree, repo, document_id, page_num, cell, n, False)
+            for col_num, cell in enumerate(row["cells"]):
+                yield from process_cell(tree, repo, document_id, page_num, cell, row_num, col_num, False)
 
 
 def get_entities(tree, cell):
@@ -26,8 +30,8 @@ def get_entities(tree, cell):
     return entities
 
 
-def process_cell(tree, repo, document_id, page_num, cell, n, store_entities: bool):
-    cell["column"] = str(n)
+def process_cell(tree, repo, document_id, page_num, cell, row_num, col_num, store_entities: bool):
+    cell["column"] = str(col_num)
     entities = get_entities(tree, cell)
     if store_entities:
         cell["entities"] = [t.text for t in entities]
@@ -35,5 +39,4 @@ def process_cell(tree, repo, document_id, page_num, cell, n, store_entities: boo
     repo.add_document_text(document_id, cell.get("text"),
                            meta={"page": page_num, "bbox": cell.get("bbox")})
     for term in entities:
-        repo.add_document_term(document_id, term.id,
-                               meta={"page": page_num, "bbox": cell.get("bbox")})
+        yield FoundTermInfo(col_num, row_num, term.id, {"page": page_num, "bbox": cell.get("bbox")})

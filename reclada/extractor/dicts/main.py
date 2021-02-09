@@ -8,7 +8,7 @@ import ahocorasick
 
 from .dict_repo import DictTermRepo
 from .findterms import extract
-from .table import process_table
+from .table import process_table, FoundTermInfo
 
 DB_URI = os.getenv("DB_URI")
 
@@ -47,15 +47,23 @@ def process_tables(tree, document_id, repo, filename):
                 if not is_valid_table(block):
                     continue
                 data = deepcopy(block)
-                process_table(tree, repo, document_id, page_num, data)
-                repo.add_document_table(document_id, data, block,
-                                        meta={"page": page_num, "bbox": bbox})
+                found_terms = list(process_table(tree, repo, document_id, page_num, data))
+                res = repo.add_document_table(document_id, data, block,
+                                              meta={"page": page_num, "bbox": bbox})
+                table_id = res["id"]
+                fterm: FoundTermInfo
+                for fterm in found_terms:
+                    fterm.meta.update({"table_id": table_id, "row": fterm.row, "col": fterm.col})
+                    repo.add_document_term(document_id, fterm.term_id, meta=fterm.meta)
             if block["type"] == "text":
-                repo.add_document_text(document_id, block["text"],
-                                       meta={"page": page_num, "bbox": bbox})
+                res = repo.add_document_text(document_id, block["text"],
+                                             meta={"page": page_num, "bbox": bbox})
+                block_id = res["id"]
                 for term, text in extract(tree, block["text"]):
-                    repo.add_document_term(document_id, term.id,
-                                           meta={"page": page_num, "bbox": bbox})
+                    repo.add_document_term(
+                        document_id, term.id,
+                        meta={"page": page_num, "bbox": bbox, "block_id": block_id}
+                    )
 
 
 def main():
