@@ -32,18 +32,18 @@ FIELDS = {"top_left_x", "top_left_y", "bottom_right_x", "bottom_right_y"}
 
 
 def is_valid_table(block):
-    return block.get("header") or block.get("rows")
+    return block.get("header") or block.get("cells")
 
 
 def process_tables(tree, document_id, repo, filename):
     with open(filename) as f:
         data = json.load(f)
 
-    for page in data["document"]["pages"]:
+    for page in data["pages"]:
         page_num = page["page_num"] + 1
         for block in page["blocks"]:
             bbox = block.pop("bbox", None)
-            if block["type"] == "table":
+            if "cells" in block or "header" in block:
                 if not is_valid_table(block):
                     continue
                 data = deepcopy(block)
@@ -55,7 +55,7 @@ def process_tables(tree, document_id, repo, filename):
                 for fterm in found_terms:
                     fterm.meta.update({"table_id": table_id, "row": fterm.row, "col": fterm.col})
                     repo.add_document_term(document_id, fterm.term_id, meta=fterm.meta)
-            if block["type"] == "text":
+            if "text" in block:
                 res = repo.add_document_text(document_id, block["text"],
                                              meta={"page": page_num, "bbox": bbox})
                 block_id = res["id"]
